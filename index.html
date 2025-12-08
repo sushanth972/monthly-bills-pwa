@@ -3,224 +3,685 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#4f46e5">
-    <meta name="apple-mobile-web-app-title" content="MonthlyBills">
-    <title>MonthlyBills - Monthly Expense Tracker</title>
+    <title>Monthly Bills PWA</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        /* Define custom font and smooth transitions */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for standalone app mode (PWA) */
+        @media all and (display-mode: standalone) {
+            header {
+                padding-top: env(safe-area-inset-top, 1.5rem);
+            }
+        }
     </style>
+    <!-- PWA Meta Tags (Injected by JS later, but define key ones here) -->
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="mobile-web-app-capable" content="yes">
 </head>
-<body>
-    <div id="root"></div>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+    <div id="app-root" class="pb-20">
+        <!-- Content will be rendered here by JavaScript -->
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modal-container"></div>
+    <div id="delete-container"></div>
+    <div id="data-container"></div>
+
 
     <script>
-        // Monthly Bills PWA App Logic
-        class MonthlyBillsApp {
-            constructor() {
-                this.expenses = JSON.parse(localStorage.getItem('monthly_expenses') || '[]');
-                this.render();
-                this.setupEventListeners();
+        // --- Icon Definitions (Lucide SVGs) ---
+        const icons = {
+            Plus: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
+            Trash2: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`,
+            CheckCircle2: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-green-500"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`,
+            Circle: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-gray-300 hover:text-indigo-500"><circle cx="12" cy="12" r="10"/></svg>`,
+            Bell: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M18.8 16.5A10 10 0 0 0 12 3a10 10 0 0 0-6.8 13.5c-.3.5-.3 1.1 0 1.6l1.2 1.2c.5.5 1.1.5 1.6 0H16c.5-.5.5-1.1 0-1.6l1.2-1.2c.3-.5.3-1.1 0-1.6z"/><path d="M9 19c0 1.7 1.3 3 3 3s3-1.3 3-3"/></svg>`,
+            BellOff: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M10.4 16.6A10 10 0 0 0 12 3a10 10 0 0 0-6.8 13.5c-.3.5-.3 1.1 0 1.6l1.2 1.2c.5.5 1.1.5 1.6 0H16c.5-.5.5-1.1 0-1.6l1.2-1.2c.3-.5.3-1.1 0-1.6z"/><path d="M9 19c0 1.7 1.3 3 3 3s3-1.3 3-3"/><line x1="2" x2="22" y1="2" y2="22"/></svg>`,
+            Calendar: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>`,
+            IndianRupee: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M6 3h12"/><path d="M6 8h12"/><path d="m6 8 4.5 4.5"/><path d="M10.5 16.5 6 21"/><path d="M10.5 12.5h4.5"/></svg>`,
+            Repeat: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M17 1l4 4-4 4"/><path d="M3 11v6a2 2 0 0 0 2 2h10"/><path d="m7 13-4-4 4-4"/><path d="M21 13v-6a2 2 0 0 0-2-2H9"/></svg>`,
+            Database: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/><path d="M3 19c0 1.66 4 3 9 3s9-1.34 9-3"/><path d="M3 5v14"/></svg>`,
+            Download: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M12 17v-10"/><path d="M16 13l-4 4-4-4"/><path d="M5 21h14"/></svg>`,
+            Upload: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M12 5v10"/><path d="M16 9l-4-4-4 4"/><path d="M5 19h14"/></svg>`,
+            X: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-gray-600"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`
+        };
+
+        // --- State Variables (Managed globally in plain JS) ---
+        let expenses = [];
+        let isModalOpen = false;
+        let isDataModalOpen = false;
+        let expenseToDelete = null;
+        let editingExpense = null;
+        let notificationPermission = 'default';
+
+        // Form State
+        let name = '';
+        let amount = '';
+        let dateInput = '';
+        let remind = true;
+        let isRecurring = true;
+
+        const root = document.getElementById('app-root');
+        const modalContainer = document.getElementById('modal-container');
+        const deleteContainer = document.getElementById('delete-container');
+        const dataContainer = document.getElementById('data-container');
+
+        // --- Data Persistence ---
+
+        const loadData = () => {
+            const saved = localStorage.getItem('monthly_expenses');
+            if (saved) {
+                expenses = JSON.parse(saved);
+            }
+            if ('Notification' in window) {
+                notificationPermission = Notification.permission;
+            }
+        };
+
+        const saveData = () => {
+            localStorage.setItem('monthly_expenses', JSON.stringify(expenses));
+            checkReminders();
+            renderApp(); // Re-render whenever state changes
+        };
+
+        // --- Utility Functions ---
+
+        const isPaidThisMonth = (expense) => {
+            const now = new Date();
+            const currentKey = `${now.getFullYear()}-${now.getMonth()}`;
+            return expense.paidHistory && expense.paidHistory.includes(currentKey);
+        };
+
+        const getStatusColor = (expense) => {
+            const today = new Date().getDate();
+            if (isPaidThisMonth(expense)) return 'bg-green-50 border-green-200';
+            if (expense.dueDay < today) return 'bg-red-50 border-red-200'; 
+            if (expense.dueDay <= today + 3) return 'bg-yellow-50 border-yellow-200'; 
+            return 'bg-white border-gray-100';
+        };
+
+        const getNextDueDateFormatted = (expense) => {
+            const today = new Date();
+            const paid = isPaidThisMonth(expense);
+            
+            let targetMonth = today.getMonth();
+            if (paid && expense.isRecurring !== false) targetMonth += 1; 
+
+            const date = new Date(today.getFullYear(), targetMonth, expense.dueDay);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        };
+
+        const getStatusText = (expense) => {
+            const today = new Date().getDate();
+            
+            if (expense.isRecurring === false) {
+                return isPaidThisMonth(expense) ? 'Paid (One-Time)' : 'One-Time';
             }
 
-            render() {
-                const root = document.getElementById('root');
+            if (isPaidThisMonth(expense)) return 'Paid';
+            if (expense.dueDay === today) return 'Due Today!';
+            if (expense.dueDay < today) return `Overdue by ${today - expense.dueDay} days`;
+            const daysLeft = expense.dueDay - today;
+            return `Due in ${daysLeft} days`;
+        };
+        
+        // --- Handlers ---
+        
+        const resetFormState = () => {
+            name = '';
+            amount = '';
+            dateInput = '';
+            remind = true;
+            isRecurring = true;
+            editingExpense = null;
+        }
+
+        const openModal = (expense = null) => {
+            resetFormState();
+            if (expense) {
+                const today = new Date();
+                const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(expense.dueDay).padStart(2, '0')}`;
                 
-                const totalMonthly = this.expenses.reduce((a, b) => a + b.amount, 0);
-                const totalPaid = this.expenses.reduce((a, b) => {
-                    const now = new Date();
-                    const currentKey = `${now.getFullYear()}-${now.getMonth()}`;
-                    return (b.paidHistory && b.paidHistory.includes(currentKey)) ? a + b.amount : a;
-                }, 0);
-                const totalPending = totalMonthly - totalPaid;
+                editingExpense = expense;
+                name = expense.name;
+                amount = expense.amount.toString();
+                dateInput = formattedDate;
+                remind = expense.remind ?? true;
+                isRecurring = expense.isRecurring ?? true;
+            }
+            isModalOpen = true;
+            renderModals();
+        }
 
-                root.innerHTML = `
-                    <div class="min-h-screen bg-gray-50 pb-20">
-                        <!-- Header -->
-                        <header class="bg-indigo-600 text-white p-6 pb-12 rounded-b-[2rem] shadow-lg">
-                            <div class="flex justify-between items-center mb-6">
-                                <h1 class="text-2xl font-bold">📅 MonthlyBills</h1>
-                                <div class="flex gap-2">
-                                    <button onclick="app.showDataModal()" class="p-2 rounded-full bg-indigo-500 text-indigo-200 hover:bg-indigo-700">
-                                        💾
-                                    </button>
-                                    <button onclick="app.requestNotification()" class="p-2 rounded-full bg-white text-indigo-600">
-                                        🔔
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="flex justify-between items-end">
-                                <div>
-                                    <p class="text-indigo-200 text-sm font-medium mb-1">Left to Pay</p>
-                                    <p class="text-4xl font-bold">₹${totalPending.toLocaleString()}</p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-indigo-200 text-xs mb-1">Total Budget</p>
-                                    <p class="font-semibold">₹${totalMonthly.toLocaleString()}</p>
-                                </div>
-                            </div>
-                        </header>
+        const closeModal = () => {
+            isModalOpen = false;
+            resetFormState();
+            renderModals();
+        }
 
-                        <!-- Stats -->
-                        <div class="px-6 -mt-8 grid grid-cols-2 gap-4 mb-6">
-                            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                                <span class="text-xs text-gray-400 font-bold">Paid</span>
-                                <span class="text-xl font-bold text-green-600">₹${totalPaid.toLocaleString()}</span>
-                            </div>
-                            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                                <span class="text-xs text-gray-400 font-bold">Progress</span>
-                                <span class="text-xl font-bold text-indigo-600">${totalMonthly > 0 ? Math.round((totalPaid / totalMonthly) * 100) : 0}%</span>
-                            </div>
-                        </div>
+        const handleSaveExpense = (e) => {
+            e.preventDefault();
+            if (!name || !amount || !dateInput) return;
 
-                        <!-- Bills List -->
-                        <div class="px-4 space-y-3">
-                            <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider px-2">Your Bills</h2>
-                            ${this.expenses.length === 0 ? '<div class="text-center py-10 text-gray-400"><p>No expenses yet. Tap + to add one.</p></div>' : ''}
-                            ${this.expenses.map((exp, idx) => this.renderExpenseItem(exp, idx)).join('')}
-                        </div>
+            const day = parseInt(dateInput.split('-')[2]);
 
-                        <!-- FAB -->
-                        <button onclick="app.showAddModal()" class="fixed bottom-6 right-6 bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 text-2xl">
-                            ➕
-                        </button>
+            const updatedExpense = {
+                id: editingExpense ? editingExpense.id : Date.now(),
+                name,
+                amount: parseFloat(amount),
+                dueDay: day,
+                remind: isRecurring ? remind : false, 
+                isRecurring: isRecurring, 
+                paidHistory: editingExpense ? editingExpense.paidHistory : []
+            };
 
-                        <!-- Add Expense Modal -->
-                        <div id="addModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
-                            <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
-                                <h2 class="text-xl font-bold text-gray-800 mb-6">Add New Bill</h2>
-                                <form onsubmit="app.addExpense(event)">
-                                    <input type="text" id="expenseName" placeholder="e.g., Rent, Netflix" class="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500 mb-4" required>
-                                    <div class="grid grid-cols-2 gap-4 mb-4">
-                                        <input type="number" id="expenseAmount" placeholder="0.00" class="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500" required>
-                                        <input type="date" id="expenseDate" class="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500" required>
-                                    </div>
-                                    <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700">Save Expense</button>
-                                </form>
-                                <button onclick="app.closeModal('addModal')" class="mt-2 w-full text-gray-600 py-2">Cancel</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
+            if (editingExpense) {
+                expenses = expenses.map(exp => 
+                    exp.id === updatedExpense.id ? updatedExpense : exp
+                );
+            } else {
+                expenses.push(updatedExpense);
             }
 
-            renderExpenseItem(exp, idx) {
-                const now = new Date();
-                const currentKey = `${now.getFullYear()}-${now.getMonth()}`;
-                const isPaid = exp.paidHistory && exp.paidHistory.includes(currentKey);
-                
-                return `
-                    <div class="flex items-center justify-between p-4 rounded-xl border shadow-sm bg-white">
-                        <div class="flex items-center gap-4 flex-1">
-                            <button onclick="app.togglePaid(${idx})" class="text-2xl">
-                                ${isPaid ? '✅' : '⭕'}
-                            </button>
-                            <div>
-                                <h3 class="font-semibold ${isPaid ? 'text-gray-400 line-through' : 'text-gray-800'}">${exp.name}</h3>
-                                <p class="text-xs ${isPaid ? 'text-gray-400' : 'text-indigo-600'} font-medium">Due: ${exp.dueDay}th</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <span class="font-bold ${isPaid ? 'text-gray-400' : 'text-gray-800'}">₹${exp.amount}</span>
-                            <button onclick="app.deleteExpense(${idx})" class="text-gray-300 hover:text-red-400">🗑️</button>
-                        </div>
-                    </div>
-                `;
-            }
+            closeModal();
+            saveData();
+        };
 
-            togglePaid(idx) {
-                const now = new Date();
-                const currentKey = `${now.getFullYear()}-${now.getMonth()}`;
-                if (!this.expenses[idx].paidHistory) this.expenses[idx].paidHistory = [];
+        const togglePaid = (id) => {
+            const now = new Date();
+            const currentKey = `${now.getFullYear()}-${now.getMonth()}`;
+
+            expenses = expenses.map(exp => {
+                if (exp.id !== id) return exp;
                 
-                const history = this.expenses[idx].paidHistory;
+                const history = exp.paidHistory || [];
+                let newHistory;
+                
                 if (history.includes(currentKey)) {
-                    history.splice(history.indexOf(currentKey), 1);
+                    newHistory = history.filter(h => h !== currentKey);
                 } else {
-                    history.push(currentKey);
+                    newHistory = [...history, currentKey];
                 }
                 
-                this.save();
+                return { ...exp, paidHistory: newHistory };
+            });
+            saveData();
+        };
+
+        // --- Deletion Handlers ---
+
+        const confirmDelete = (id) => {
+            expenseToDelete = id;
+            renderDeleteModal();
+        };
+
+        const performDelete = () => {
+            if (expenseToDelete) {
+                expenses = expenses.filter(e => e.id !== expenseToDelete);
+                expenseToDelete = null;
+                renderDeleteModal(); // Close modal
+                saveData();
             }
+        };
 
-            deleteExpense(idx) {
-                if (confirm('Delete this expense?')) {
-                    this.expenses.splice(idx, 1);
-                    this.save();
-                }
+        const closeDeleteModal = () => {
+            expenseToDelete = null;
+            renderDeleteModal();
+        };
+
+
+        // --- Notification Handlers ---
+
+        const requestNotificationPermission = async () => {
+            if (!('Notification' in window)) {
+                console.error("This browser does not support desktop notifications.");
+                return;
             }
-
-            addExpense(e) {
-                e.preventDefault();
-                const name = document.getElementById('expenseName').value;
-                const amount = parseFloat(document.getElementById('expenseAmount').value);
-                const dateInput = document.getElementById('expenseDate').value;
-                const dueDay = parseInt(dateInput.split('-')[2]);
-
-                this.expenses.push({
-                    id: Date.now(),
-                    name,
-                    amount,
-                    dueDay,
-                    remind: true,
-                    isRecurring: true,
-                    paidHistory: []
-                });
-
-                this.closeModal('addModal');
-                this.save();
+            
+            if (Notification.permission === 'granted' || Notification.permission === 'denied') {
+                notificationPermission = Notification.permission;
+                renderApp();
+                return;
             }
-
-            showAddModal() {
-                document.getElementById('addModal').classList.remove('hidden');
-                document.getElementById('expenseName').focus();
-            }
-
-            showDataModal() {
-                const dataUrl = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(this.expenses, null, 2));
-                const link = document.createElement('a');
-                link.href = dataUrl;
-                link.download = `MonthlyBills_${new Date().toISOString().slice(0, 10)}.json`;
-                link.click();
-            }
-
-            requestNotification() {
-                if ('Notification' in window) {
-                    Notification.requestPermission().then(permission => {
-                        if (permission === 'granted') {
-                            new Notification('MonthlyBills', { body: 'Reminders enabled!' });
-                        }
+            
+            try {
+                const permission = await Notification.requestPermission();
+                notificationPermission = permission;
+                renderApp();
+                
+                if (permission === 'granted') {
+                    new Notification("Reminders Enabled", {
+                        body: "We will remind you when bills are due!",
+                        icon: "/icon.png" 
                     });
                 }
+            } catch (error) {
+                console.error("Error requesting notification permission:", error);
             }
+        };
 
-            closeModal(modalId) {
-                document.getElementById(modalId).classList.add('hidden');
+        const checkReminders = () => {
+            if (notificationPermission !== 'granted') return;
+
+            const today = new Date();
+            const currentDay = today.getDate();
+            const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+
+            const upcoming = expenses.filter(exp => {
+                if (exp.remind === false) return false;
+                if (isPaidThisMonth(exp)) return false;
+
+                let diff = exp.dueDay - currentDay;
+                if (diff < 0) diff += daysInMonth; 
+
+                return diff >= 0 && diff <= 3;
+            });
+
+            if (upcoming.length > 0) {
+                // Background notification logic would go here (requires Service Worker for true PWA background push)
             }
+        };
 
-            save() {
-                localStorage.setItem('monthly_expenses', JSON.stringify(this.expenses));
-                this.render();
-            }
+        // --- Data Management Handlers ---
 
-            setupEventListeners() {
-                document.addEventListener('click', (e) => {
-                    if (e.target.classList.contains('close-modal')) {
-                        this.closeModal('addModal');
+        const openDataModal = () => {
+            isDataModalOpen = true;
+            renderDataModal();
+        };
+
+        const closeDataModal = () => {
+            isDataModalOpen = false;
+            renderDataModal();
+        };
+
+        const handleExport = () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(localStorage.getItem('monthly_expenses') || '[]');
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `MonthlyBills_Backup_${new Date().toISOString().slice(0, 10)}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            closeDataModal();
+        };
+
+        const handleImport = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const json = e.target.result;
+                    const importedExpenses = JSON.parse(json);
+
+                    if (Array.isArray(importedExpenses)) {
+                        const isValid = importedExpenses.every(item => item.id && item.name && typeof item.amount === 'number');
+                        
+                        if (isValid) {
+                            expenses = importedExpenses;
+                            saveData(); // Save and re-render
+                            closeDataModal();
+                        } else {
+                            console.error("Import failed: The file format is invalid or missing critical fields."); 
+                        }
+                    } else {
+                        console.error("Import failed: The file does not contain a valid expense array.");
                     }
-                });
-            }
-        }
-
-        const app = new MonthlyBillsApp();
+                } catch (error) {
+                    console.error("Error parsing JSON:", error);
+                }
+            };
+            reader.readAsText(file);
+        };
         
-        // Register Service Worker for PWA
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('data:text/javascript,console.log("offline support")');
-        }
+        // --- Rendering Functions ---
+
+        const renderDeleteModal = () => {
+            if (!expenseToDelete) {
+                deleteContainer.innerHTML = '';
+                return;
+            }
+
+            deleteContainer.innerHTML = `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+                    <div class="bg-white rounded-2xl p-6 shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-200">
+                        <h3 class="text-lg font-bold text-gray-800 mb-2">Delete Expense?</h3>
+                        <p class="text-gray-500 mb-6">Are you sure you want to remove this expense permanently?</p>
+                        <div class="flex gap-3">
+                            <button onclick="closeDeleteModal()" class="flex-1 py-3 text-gray-600 bg-gray-100 font-bold rounded-xl hover:bg-gray-200 transition-colors">
+                                Cancel
+                            </button>
+                            <button onclick="performDelete()" class="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderDataModal = () => {
+            if (!isDataModalOpen) {
+                dataContainer.innerHTML = '';
+                return;
+            }
+
+            dataContainer.innerHTML = `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+                    <div class="bg-white rounded-2xl p-6 shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-200">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">${icons.Database} Data Management</h3>
+                            <button onclick="closeDataModal()" class="p-2 bg-gray-100 rounded-full">${icons.X}</button>
+                        </div>
+                        
+                        <p class="text-sm text-gray-500 mb-4">Your data is stored only on this device. Use these options for backup.</p>
+
+                        <div class="space-y-4">
+                            <button onclick="handleExport()" class="w-full flex items-center justify-center gap-2 py-3 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200 transition-colors">
+                                ${icons.Download} Export Data (JSON Backup)
+                            </button>
+
+                            <label for="import-file-html" class="w-full flex items-center justify-center gap-2 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors cursor-pointer">
+                                ${icons.Upload} Import Data (Restore)
+                                <input 
+                                    type="file" 
+                                    id="import-file-html" 
+                                    accept=".json" 
+                                    onchange="handleImport(event)" 
+                                    class="hidden" 
+                                />
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderModals = () => {
+            if (!isModalOpen) {
+                modalContainer.innerHTML = '';
+                return;
+            }
+            
+            const isEditing = editingExpense !== null;
+            const title = isEditing ? 'Edit Bill' : 'Add New Bill';
+            const buttonText = isEditing ? 'Update Expense' : 'Save Expense';
+            const recurrenceText = isRecurring ? 'Repeats Monthly' : 'One-Time Cost';
+            const reminderBg = remind ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 text-gray-500';
+            const reminderIcon = remind ? icons.Bell : icons.BellOff;
+            const recurrenceIconBg = isRecurring ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 text-gray-500';
+
+            const modalHtml = `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
+                    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-200">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-bold text-gray-800">${title}</h2>
+                            <button onclick="closeModal()" class="p-2 bg-gray-100 rounded-full">${icons.X}</button>
+                        </div>
+
+                        <form onsubmit="handleSaveExpense(event)" id="expense-form" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Expense Name</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Rent, Netflix"
+                                    class="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500"
+                                    value="${name}"
+                                    oninput="name = this.value"
+                                    required
+                                    autofocus
+                                />
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-3.5 text-gray-400">${icons.IndianRupee}</span>
+                                        <input 
+                                            type="number" 
+                                            placeholder="0.00"
+                                            class="w-full p-3 pl-9 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500"
+                                            value="${amount}"
+                                            oninput="amount = this.value"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                                    <input 
+                                        type="date" 
+                                        class="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500"
+                                        value="${dateInput}"
+                                        oninput="dateInput = this.value; document.querySelector('.recurrence-info').innerHTML = this.value ? 'Repeats monthly on the <span class=\\"font-bold\\">' + parseInt(this.value.split('-')[2]) + 'th</span>' : '';"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            
+                            <!-- Recurrence Toggle (Feature 5) -->
+                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                                <div class="flex items-center gap-2">
+                                    <div class="p-2 rounded-full ${recurrenceIconBg}">
+                                        ${icons.Repeat}
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-800">Expense Type</p>
+                                        <p class="text-xs text-gray-500">${recurrenceText}</p>
+                                    </div>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input 
+                                        type="checkbox" 
+                                        class="sr-only peer"
+                                        onchange="isRecurring = this.checked; renderModals();"
+                                        ${isRecurring ? 'checked' : ''}
+                                    />
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                </label>
+                            </div>
+
+                            <!-- Reminder Toggle (Only shown if Recurring) -->
+                            ${isRecurring ? `
+                                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                                    <div class="flex items-center gap-2">
+                                        <div class="p-2 rounded-full ${reminderBg}">
+                                            ${reminderIcon}
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-800">Monthly Reminder</p>
+                                            <p class="text-xs text-gray-500">Notify 3 days before due</p>
+                                        </div>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            class="sr-only peer"
+                                            onchange="remind = this.checked; renderModals();"
+                                            ${remind ? 'checked' : ''}
+                                        />
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                    </label>
+                                </div>` 
+                            : ''}
+
+                            <button 
+                                type="submit"
+                                class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl mt-4 hover:bg-indigo-700 transition-colors"
+                            >
+                                ${buttonText}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+            modalContainer.innerHTML = modalHtml;
+        };
+        
+        const renderApp = () => {
+            const totalMonthly = expenses.reduce((acc, curr) => acc + curr.amount, 0);
+            const totalPaid = expenses.reduce((acc, curr) => isPaidThisMonth(curr) ? acc + curr.amount : acc, 0);
+            const totalPending = totalMonthly - totalPaid;
+            const progress = totalMonthly > 0 ? Math.round((totalPaid / totalMonthly) * 100) : 0;
+            
+            // Filter and Sort Logic
+            const filteredAndSortedExpenses = (() => {
+                const filtered = expenses.filter(exp => {
+                    if (exp.isRecurring === false && isPaidThisMonth(exp)) return false;
+                    return true;
+                });
+                return [...filtered].sort((a, b) => {
+                    const aPaid = isPaidThisMonth(a);
+                    const bPaid = isPaidThisMonth(b);
+                    if (aPaid === bPaid) return a.dueDay - b.dueDay;
+                    return aPaid ? 1 : -1;
+                });
+            })();
+
+            const expenseListHtml = filteredAndSortedExpenses.length === 0 ? `
+                <div class="text-center py-10 text-gray-400">
+                    <p>No active expenses yet.</p>
+                    <p class="text-sm">Tap + to add one.</p>
+                </div>
+            ` : filteredAndSortedExpenses.map(expense => `
+                <div 
+                    class="flex items-center justify-between p-4 rounded-xl border shadow-sm transition-all ${getStatusColor(expense)}"
+                >
+                    <div class="flex items-center gap-4 w-full" onclick="openModal(${JSON.stringify(expense).replace(/"/g, '&quot;')})">
+                        <button 
+                            onclick="event.stopPropagation(); togglePaid(${expense.id});"
+                            class="focus:outline-none transition-transform active:scale-95"
+                        >
+                            ${isPaidThisMonth(expense) ? icons.CheckCircle2 : icons.Circle}
+                        </button>
+                        <div class="flex-1">
+                            <h3 class="font-semibold ${isPaidThisMonth(expense) ? 'text-gray-400 line-through' : 'text-gray-800'}">
+                                ${expense.name}
+                            </h3>
+                            <div class="flex flex-col">
+                                <p class="text-xs flex items-center gap-1 ${isPaidThisMonth(expense) ? 'text-gray-400' : 'text-indigo-600 font-medium'}">
+                                    ${getStatusText(expense)} 
+                                    ${expense.isRecurring !== false && expense.remind !== false && !isPaidThisMonth(expense) ? `<span class="w-3 h-3 ml-1">${icons.Bell}</span>` : ''}
+                                </p>
+                                <p class="text-[10px] text-gray-400 font-medium mt-0.5">
+                                    ${expense.isRecurring !== false ? `Next Due: ${getNextDueDateFormatted(expense)}` : (!isPaidThisMonth(expense) ? `Due on: ${getNextDueDateFormatted(expense)}` : '')}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-3">
+                        <span class="font-bold ${isPaidThisMonth(expense) ? 'text-gray-400' : 'text-gray-800'}">
+                            ₹${expense.amount}
+                        </span>
+                        <button 
+                            onclick="event.stopPropagation(); confirmDelete(${expense.id});"
+                            class="text-gray-300 hover:text-red-400 p-1"
+                        >
+                            ${icons.Trash2}
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+
+            root.innerHTML = `
+                <!-- Header -->
+                <header class="bg-indigo-600 text-white p-6 pb-12 rounded-b-[2rem] shadow-lg">
+                    <div class="flex justify-between items-center mb-6">
+                        <h1 class="text-2xl font-bold flex items-center gap-2">
+                            ${icons.Calendar} MonthlyBills
+                        </h1>
+                        <div class="flex gap-2">
+                            <button 
+                                onclick="openDataModal()"
+                                class="p-2 rounded-full bg-indigo-500 text-indigo-200 hover:bg-indigo-700 transition-colors"
+                            >
+                                ${icons.Database}
+                            </button>
+                            <button 
+                                onclick="requestNotificationPermission()"
+                                class="p-2 rounded-full ${notificationPermission === 'granted' ? 'bg-indigo-500 text-indigo-200' : 'bg-white text-indigo-600 animate-pulse'}"
+                            >
+                                ${icons.Bell}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-end">
+                        <div>
+                            <p class="text-indigo-200 text-sm font-medium mb-1">Left to Pay</p>
+                            <p class="text-4xl font-bold">₹${totalPending.toLocaleString()}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-indigo-200 text-xs mb-1">Total Budget</p>
+                            <p class="font-semibold">₹${totalMonthly.toLocaleString()}</p>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- Stats Cards -->
+                <div class="px-6 -mt-8 grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                        <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Paid</span>
+                        <span class="text-xl font-bold text-green-600">₹${totalPaid.toLocaleString()}</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                        <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Progress</span>
+                        <span class="text-xl font-bold text-indigo-600">
+                            ${progress}%
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Expense List -->
+                <div class="px-4 space-y-3">
+                    <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider px-2">Your Bills</h2>
+                    ${expenseListHtml}
+                </div>
+
+                <!-- FAB -->
+                <button 
+                    onclick="openModal()"
+                    class="fixed bottom-6 right-6 bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 active:scale-90 transition-all z-10"
+                >
+                    ${icons.Plus}
+                </button>
+            `;
+            
+            renderModals();
+            renderDeleteModal();
+            renderDataModal();
+        };
+
+        // --- Initialization ---
+        window.onload = () => {
+            loadData();
+            renderApp();
+        };
+        
+        // Expose functions globally for event handlers (since we are in HTML/JS mode)
+        window.openModal = openModal;
+        window.closeModal = closeModal;
+        window.handleSaveExpense = handleSaveExpense;
+        window.togglePaid = togglePaid;
+        window.confirmDelete = confirmDelete;
+        window.performDelete = performDelete;
+        window.closeDeleteModal = closeDeleteModal;
+        window.requestNotificationPermission = requestNotificationPermission;
+        window.openDataModal = openDataModal;
+        window.closeDataModal = closeDataModal;
+        window.handleExport = handleExport;
+        window.handleImport = handleImport;
+        
     </script>
 </body>
 </html>
