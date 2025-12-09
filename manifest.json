@@ -4,7 +4,7 @@
   "description": "Track your monthly expenses and bills with reminders",
   "start_url": "/monthly-bills-pwa/",
   "scope": "/monthly-bills-pwa/",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "portrait-primary",
   "theme_color": "#4f46e5",
   "background_color": "#ffffff",
