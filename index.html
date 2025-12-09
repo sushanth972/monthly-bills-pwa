@@ -461,8 +461,7 @@
                                         type="date" 
                                         class="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500"
                                         value="${dateInput}"
-                                        oninput="dateInput = this.value; document.querySelector('.recurrence-info').innerHTML = this.value ? 'Repeats monthly on the <span class=\\"font-bold\\">' + parseInt(this.value.split('-')[2]) + 'th</span>' : '';"
-                                        required
+    oninput="dateInput = this.value"                                        required
                                     />
                                 </div>
                             </div>
