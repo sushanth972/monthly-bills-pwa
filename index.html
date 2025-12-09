@@ -174,7 +174,7 @@
                   const currentName = nameInputElement?.value || name;
                   const currentAmount = amountInputElement?.value || amount;
       if (!currentName || !currentAmount || !currentDateInput) return;
-      const day = parseInt(currentDateInput.split('-')[2];
+      const day = parseInt(currentDateInput.split('-')[2]);
             
             const updatedExpense = {
                 id: editingExpense ? editingExpense.id : Date.now(),
