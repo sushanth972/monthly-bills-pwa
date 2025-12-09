@@ -167,9 +167,10 @@
 
         const handleSaveExpense = (e) => {
             e.preventDefault();
-            if (!name || !amount || !dateInput) return;
-
-            const day = parseInt(dateInput.split('-')[2]);
+            const dateInputElement = document.querySelector('input[type="date"]');
+  const currentDateInput = dateInputElement?.value || dateInput;
+  if (!name || !amount || !currentDateInput) return;
+  const day = parseInt(currentDateInput.split('-')[2]);
 
             const updatedExpense = {
                 id: editingExpense ? editingExpense.id : Date.now(),
