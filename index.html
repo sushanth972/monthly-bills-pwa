@@ -169,13 +169,17 @@
             e.preventDefault();
             const dateInputElement = document.querySelector('input[type="date"]');
   const currentDateInput = dateInputElement?.value || dateInput;
-  if (!name || !amount || !currentDateInput) return;
-  const day = parseInt(currentDateInput.split('-')[2]);
-
+                  const nameInputElement = document.querySelector('input[placeholder="e.g. Rent, Netflix"]');
+                  const amountInputElement = document.querySelector('input[type="number"]');
+                  const currentName = nameInputElement?.value || name;
+                  const currentAmount = amountInputElement?.value || amount;
+      if (!currentName || !currentAmount || !currentDateInput) return;
+      const day = parseInt(currentDateInput.split('-')[2];
+            
             const updatedExpense = {
                 id: editingExpense ? editingExpense.id : Date.now(),
-                name,
-                amount: parseFloat(amount),
+            name: currentName,
+            amount: parseFloat(currentAmount),
                 dueDay: day,
                 remind: isRecurring ? remind : false, 
                 isRecurring: isRecurring, 
