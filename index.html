@@ -80,6 +80,14 @@
         // Task Form State
         let taskTitle = ''; 
 
+        // NEW: Priority definition (Higher number = Lower priority)
+        const priorityMap = {
+            1: { label: 'High', color: 'text-red-600 bg-red-100 border-red-200', order: 1 },
+            2: { label: 'Medium', color: 'text-yellow-600 bg-yellow-100 border-yellow-200', order: 2 },
+            3: { label: 'Low', color: 'text-green-600 bg-green-100 border-green-200', order: 3 },
+        };
+        const defaultPriority = 2; // Medium
+
         const root = document.getElementById('app-root');
         const modalContainer = document.getElementById('modal-container');
         const deleteContainer = document.getElementById('delete-container');
@@ -95,7 +103,11 @@
             }
             const savedTasks = localStorage.getItem('daily_tasks');
             if (savedTasks) {
-                tasks = JSON.parse(savedTasks);
+                // Ensure legacy tasks have a priority assigned
+                tasks = JSON.parse(savedTasks).map(t => ({
+                    ...t,
+                    priority: t.priority || defaultPriority 
+                }));
             }
             if ('Notification' in window) {
                 notificationPermission = Notification.permission;
@@ -244,8 +256,9 @@
 
         // --- Task Handlers ---
 
-        const openTaskModal = () => {
-            taskTitle = '';
+        const openTaskModal = (task = null) => {
+            taskTitle = task ? task.title : '';
+            editingTask = task; // Reuse editingTask variable for priority update later
             isTaskModalOpen = true;
             renderTaskModal();
         };
@@ -253,21 +266,32 @@
         const closeTaskModal = () => {
             isTaskModalOpen = false;
             taskTitle = '';
+            editingTask = null; // Clear editing state
             renderTaskModal();
         };
 
         const handleSaveTask = (e) => {
             e.preventDefault();
             const currentTitle = document.getElementById('task-title-input').value.trim();
+            const currentPriority = parseInt(document.getElementById('task-priority-input').value);
+            
             if (!currentTitle) return;
 
             const newTask = {
-                id: Date.now(),
+                id: editingTask ? editingTask.id : Date.now(),
                 title: currentTitle,
-                completed: false
+                completed: editingTask ? editingTask.completed : false,
+                priority: currentPriority
             };
 
-            tasks.push(newTask);
+            if (editingTask) {
+                tasks = tasks.map(t => 
+                    t.id === newTask.id ? newTask : t
+                );
+            } else {
+                tasks.push(newTask);
+            }
+
             closeTaskModal();
             saveData();
         };
@@ -426,7 +450,10 @@
                             expenses = importedData.expenses;
                         }
                         if (Array.isArray(importedData.tasks)) { // NEW: Import tasks
-                            tasks = importedData.tasks;
+                            tasks = importedData.tasks.map(t => ({
+                                ...t,
+                                priority: t.priority || defaultPriority
+                            }));
                         }
                         saveData(); 
                         closeDataModal();
@@ -510,12 +537,22 @@
                 taskModalContainer.innerHTML = '';
                 return;
             }
+            
+            const isEditing = editingTask !== null;
+            const currentPriority = editingTask ? editingTask.priority : defaultPriority;
+
+            const priorityOptions = Object.keys(priorityMap).map(key => {
+                const mapEntry = priorityMap[key];
+                const selected = parseInt(key) === currentPriority ? 'selected' : '';
+                return `<option value="${key}" ${selected}>${mapEntry.label}</option>`;
+            }).join('');
+
 
             taskModalContainer.innerHTML = `
                 <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
                     <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-200">
                         <div class="flex justify-between items-center mb-6">
-                            <h2 class="text-xl font-bold text-gray-800">Add New Task</h2>
+                            <h2 class="text-xl font-bold text-gray-800">${isEditing ? 'Edit Task' : 'Add New Task'}</h2>
                             <button onclick="closeTaskModal()" class="p-2 bg-gray-100 rounded-full">${icons.X}</button>
                         </div>
 
@@ -534,11 +571,23 @@
                                 />
                             </div>
 
+                            <!-- NEW PRIORITY FIELD -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                                <select 
+                                    id="task-priority-input"
+                                    class="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    ${priorityOptions}
+                                </select>
+                            </div>
+                            <!-- END NEW PRIORITY FIELD -->
+
                             <button 
                                 type="submit"
                                 class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl mt-4 hover:bg-indigo-700 transition-colors"
                             >
-                                Save Task
+                                ${isEditing ? 'Update Task' : 'Save Task'}
                             </button>
                         </form>
                     </div>
@@ -675,37 +724,63 @@
         };
         
         const renderTaskTab = () => { // Task Tab Content Renderer
-            const sortedTasks = [...tasks].sort((a, b) => a.completed - b.completed);
+            // SORTING LOGIC: 
+            // 1. Uncompleted first (false < true)
+            // 2. Then by Priority (1=High, 2=Medium, 3=Low)
+            const sortedTasks = [...tasks].sort((a, b) => {
+                if (a.completed !== b.completed) {
+                    return a.completed ? 1 : -1; // Uncompleted (false=0) comes first
+                }
+                // Sort by priority ascending (1 < 2 < 3)
+                return (a.priority || defaultPriority) - (b.priority || defaultPriority);
+            });
 
             const taskListHtml = sortedTasks.length === 0 ? `
                 <div class="text-center py-10 text-gray-400">
                     <p>No tasks yet.</p>
                     <p class="text-sm">Tap + to add one.</p>
                 </div>
-            ` : sortedTasks.map(task => `
-                <div 
-                    class="flex items-center justify-between p-4 rounded-xl border shadow-sm transition-all ${task.completed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'}"
-                >
-                    <div class="flex items-center gap-4 flex-1">
-                        <button 
-                            onclick="toggleTaskCompletion(${task.id})"
-                            class="focus:outline-none transition-transform active:scale-95"
-                        >
-                            ${task.completed ? icons.CheckCircle2 : icons.Circle}
-                        </button>
-                        <p class="font-semibold text-base ${task.completed ? 'text-gray-400 line-through' : 'text-gray-800'}">
-                            ${task.title}
-                        </p>
-                    </div>
-                    
-                    <button 
-                        onclick="confirmDelete(${task.id}, 'task')"
-                        class="text-gray-300 hover:text-red-400 p-1"
+            ` : sortedTasks.map(task => {
+                const p = priorityMap[task.priority || defaultPriority];
+                // Use a neutral color for completed tasks, otherwise use the priority color
+                const priorityClasses = task.completed 
+                    ? 'text-gray-500 bg-gray-100 border-gray-200' 
+                    : p.color;
+
+                const baseClass = task.completed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100';
+                
+                return `
+                    <div 
+                        class="flex items-center justify-between p-4 rounded-xl border shadow-sm transition-all ${baseClass}"
                     >
-                        ${icons.Trash2}
-                    </button>
-                </div>
-            `).join('');
+                        <div class="flex items-center gap-4 flex-1">
+                            <button 
+                                onclick="toggleTaskCompletion(${task.id})"
+                                class="focus:outline-none transition-transform active:scale-95"
+                            >
+                                ${task.completed ? icons.CheckCircle2 : icons.Circle}
+                            </button>
+                            <p onclick="openTaskModal(tasks.find(t => t.id === ${task.id}))"
+                                class="font-semibold text-base flex-1 cursor-pointer ${task.completed ? 'text-gray-400 line-through' : 'text-gray-800'}">
+                                ${task.title}
+                            </p>
+                        </div>
+                        
+                        <!-- Priority Tag -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold px-2 py-1 rounded-full border ${priorityClasses}">
+                                ${p.label}
+                            </span>
+                            <button 
+                                onclick="confirmDelete(${task.id}, 'task')"
+                                class="text-gray-300 hover:text-red-400 p-1"
+                            >
+                                ${icons.Trash2}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
             return `
                 <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider px-4 mb-3">To-Do List</h2>
